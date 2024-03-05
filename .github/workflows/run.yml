@@ -1,0 +1,49 @@
+name: Run Harvest Time Tracker Analysis Tool
+
+on:
+  workflow_dispatch:
+    inputs:
+      accountid:
+        description: 'Harvest Account ID'
+        required: true
+      accesstoken:
+        description: 'Harvest Access Token'
+        required: true
+      userid:
+        description: 'Harvest User ID'
+        required: true
+      weeklyhours:
+        description: 'Expected weekly hours'
+        required: true
+      from:
+        description: 'From Date (YYYY-MM-DD)'
+        required: true
+      to:
+        description: 'To Date (YYYY-MM-DD)'
+        required: true
+
+jobs:
+  run-program:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
+    - name: Set up Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        profile: minimal
+        override: true
+
+    - name: Build and run Harvest Time Tracker Analysis Tool
+      run: |
+        cargo run
+      env:
+        HARVEST_ACCOUNT_ID: ${{ github.event.inputs.accountid }}
+        HARVEST_ACCESS_TOKEN: ${{ github.event.inputs.accesstoken }}
+        HARVEST_USER_ID: ${{ github.event.inputs.userid }}
+        WEEKLY_HOURS: ${{ github.event.inputs.weeklyhours }}
+        FROM: ${{ github.event.inputs.from }}
+        TO: ${{ github.event.inputs.to }}
+
