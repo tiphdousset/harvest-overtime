@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Simple Form</title>
+    <style>
+        td,
+        th {
+            padding-left: 20px;
+            padding-right: 20px;
+            text-align: left;
+        }
+
+        body {
+            font-family: monospace;
+        }
+    </style>
+    <script>
+        function on_load() {
+
+            function populate_fields_from_storage(text) {
+                // Get the values from the input fields
+                const id = localStorage.getItem(text);
+                // Set the values of the input fields
+                document.getElementById(text).value = id;
+            }
+
+            populate_fields_from_storage('harvest_user_id');
+            populate_fields_from_storage('harvest_token');
+            populate_fields_from_storage('harvest_account_id');
+            populate_fields_from_storage('from');
+            populate_fields_from_storage('to');
+            populate_fields_from_storage('expected_hours_per_week');
+
+            //Temporary - for faster feedback loop
+            // handleSubmit();
+        }
+        // Function to handle the form submission without actually submitting the form
+        async function handleSubmit() {
+            document.getElementById('result').innerText = "Loading...";
+
+            // Get the values from the input fields
+            const harvest_user_id = document.getElementById('harvest_user_id').value;
+            const harvest_token = document.getElementById('harvest_token').value;
+            const harvest_account_id = document.getElementById('harvest_account_id').value;
+            const from = document.getElementById('from').value;
+            const to = document.getElementById('to').value;
+            const expected_hours_per_week = document.getElementById('expected_hours_per_week').value;
+
+            // Store data
+            localStorage.setItem('harvest_user_id', harvest_user_id);
+            localStorage.setItem('harvest_token', harvest_token);
+            localStorage.setItem('harvest_account_id', harvest_account_id);
+            localStorage.setItem('from', from);
+            localStorage.setItem('to', to);
+            localStorage.setItem('expected_hours_per_week', expected_hours_per_week);
+
+            // Construct the query string
+            const queryString = `?harvest_user_id=${encodeURIComponent(harvest_user_id)}&harvest_token=${encodeURIComponent(harvest_token)}&harvest_account_id=${encodeURIComponent(harvest_account_id)}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&expected_hours_per_week=${encodeURIComponent(expected_hours_per_week)}`;
+
+            // Perform the HTTP request
+            const stats = await (await fetch('/stats' + queryString)).json();
+
+            document.getElementById('result').innerHTML = "";
+
+            // Create header
+            const header_row = document.createElement('tr');
+
+            function add_header(text) {
+                const header = document.createElement('th');
+                header.innerText = text;
+                header_row.appendChild(header);
+            }
+
+            add_header("Isoweek");
+            add_header("Tracked/expected hours");
+            add_header("Overview");
+            add_header("Diff this week");
+            add_header("Accumulated Diff");
+            document.getElementById('result').appendChild(header_row)
+
+            function create_text_cell(text, row) {
+                const cell = document.createElement('td');
+                cell.innerText = text;
+                row.appendChild(cell);
+            }
+
+            function create_overview_cell(row, expected_hours, tracked_hours) {
+                const cell = document.createElement('td');
+                cell.style.width = "500px";
+                cell.style.height = "20px";
+                const one_hour_px = 5;
+
+                if (tracked_hours >= expected_hours) {
+                    const expectedRect = document.createElement('div');
+                    expectedRect.style.width = `${expected_hours * one_hour_px}px`;
+                    expectedRect.style.height = "20px";
+                    expectedRect.style.backgroundColor = "#F5DD61";
+                    expectedRect.style.display = "inline-block";
+
+                    const overtimeRect = document.createElement('div');
+                    overtimeRect.style.width = `${(tracked_hours - expected_hours) * one_hour_px}px`;
+                    overtimeRect.style.height = "20px";
+                    overtimeRect.style.backgroundColor = "#9BCF53";
+                    overtimeRect.style.display = "inline-block";
+
+                    cell.appendChild(expectedRect);
+                    cell.appendChild(overtimeRect);
+                }
+                else {
+                    const expectedRect = document.createElement('div');
+                    expectedRect.style.width = `${tracked_hours * one_hour_px}px`;
+                    expectedRect.style.height = "20px";
+                    expectedRect.style.backgroundColor = "#F5DD61";
+                    expectedRect.style.display = "inline-block";
+
+                    const overtimeRect = document.createElement('div');
+                    overtimeRect.style.width = `${(expected_hours - tracked_hours) * one_hour_px}px`;
+                    overtimeRect.style.height = "20px";
+                    overtimeRect.style.backgroundColor = "#F4538A";
+                    overtimeRect.style.display = "inline-block";
+
+                    cell.appendChild(expectedRect);
+                    cell.appendChild(overtimeRect);
+
+                }
+
+                row.appendChild(cell);
+
+            }
+
+            // Iterate over the stats and display row
+            for (const stat of stats) {
+                const row = document.createElement('tr');
+
+                create_text_cell(`${stat.output.isoweek} ${stat.output.month}`, row);
+                create_text_cell(`${stat.output.tracked_hours.toFixed(2)}/${stat.output.expected_hours.toFixed(2)}`, row);
+                create_overview_cell(row, stat.output.expected_hours, stat.output.tracked_hours);
+                create_text_cell(`${stat.output.diff.toFixed(2)}h`, row);
+                create_text_cell(`${stat.accumulated_diff.toFixed(2)}h`, row);
+
+                document.getElementById('result').appendChild(row)
+                console.log(stat);
+            }
+
+        }
+
+        document.addEventListener('DOMContentLoaded', on_load);
+    </script>
+</head>
+
+<body>
+    <div style="margin-bottom: 10px;">
+        <form onsubmit="handleSubmit(); return false;">
+            <input type="text" id="harvest_user_id" placeholder="Harvest user_id">
+            <input type="text" id="harvest_token" placeholder="Harvest token">
+            <input type="text" id="harvest_account_id" placeholder="Harvest account_id">
+            <input type="date" id="from" placeholder="From YYYY-MM-DD">
+            <input type="date" id="to" placeholder="To YYYY-MM-DD">
+            <input type="text" id="expected_hours_per_week" placeholder="Expected hours per week">
+            <button type="submit">Send</button>
+        </form>
+
+    </div>
+    <table id="result">
+        <!-- The result of the HTTP request will be displayed here -->
+    </table>
+
+</body>
+
+</html>

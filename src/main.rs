@@ -1,36 +1,72 @@
 mod harvest_entry;
 use crate::harvest_entry::*;
+use axum::extract::Query;
+use axum::http::StatusCode;
+use axum::response::IntoResponse;
+use axum::Json;
+use axum::{body::Body, http::Response, routing::get, Router};
 use chrono::{Datelike, IsoWeek, Month, NaiveDate};
 use colored::*;
 use group_by::group_by;
 use num_traits::cast::FromPrimitive;
-use std::env;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let from_env = env::var("FROM").expect("$FROM is not set");
-    let from: NaiveDate = NaiveDate::parse_from_str(&from_env, "%Y-%m-%d").unwrap();
-    let to_env = env::var("TO").expect("$TO is not set");
-    let to: NaiveDate = NaiveDate::parse_from_str(&to_env, "%Y-%m-%d").unwrap();
-    let expected_hours_per_week: f64 = env::var("WEEKLY_HOURS")
-        .expect("$WEEKLY_HOURS is not set")
-        .parse()
-        .unwrap();
+    let app: Router = Router::new()
+        .route("/stats", get(handle_get_stats))
+        .route("/", get(serve_static_file));
+
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+    axum::serve(listener, app).await.unwrap();
+    Ok(())
+}
+
+async fn serve_static_file() -> Response<Body> {
+    println!("Serving static file from: index.html");
+    // let html = std::fs::read_to_string("index.html").unwrap();
+    let html = include_str!("../index.html");
+    Response::builder()
+        .header("Content-Type", "text/html")
+        .body(Body::from(html))
+        .unwrap()
+}
+
+async fn handle_get_stats(Query(params): Query<HarvestStatsParams>) -> impl IntoResponse {
+    println!("Handling request with params: {:?}", params);
+    let empty_vec: Vec<BeautifulOutput> = vec![];
+    match get_stats(
+        params.harvest_user_id,
+        params.harvest_token,
+        params.harvest_account_id,
+        params.from,
+        params.to,
+        params.expected_hours_per_week,
+    )
+    .await
+    {
+        Ok(stats) => (StatusCode::OK, Json(stats)),
+        Err(e) => {
+            println!("Error while trying to get Harvest stats: {:?}", e);
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(empty_vec))
+        }
+    }
+}
+
+async fn get_stats(
+    harvest_user_id: String,
+    harvest_token: String,
+    harvest_account_id: String,
+    from: NaiveDate,
+    to: NaiveDate,
+    expected_hours_per_week: f64,
+) -> Result<Vec<BeautifulOutput>, Box<dyn std::error::Error>> {
     let expected_isoweeks: Vec<IsoWeek> = from
         .iter_weeks()
         .take_while(|w| w.iso_week() <= to.iso_week())
         .map(|w| w.iso_week())
         .collect();
-
-    let user_id = env::var("HARVEST_USER_ID").expect("$HARVEST_USER_ID is not set");
-    let token = env::var("HARVEST_ACCESS_TOKEN").expect("$HARVEST_ACCESS_TOKEN is not set");
-    let account_id = env::var("HARVEST_ACCOUNT_ID").expect("$HARVEST_ACCOUNT_ID is not set");
-
-    println!(
-        "Getting time entries for user_id: {user_id} for timerange from: {from_env} to: {to_env}. \n Expected hours per week: {expected_hours_per_week} hours."
-    );
     let time_entries: Vec<TimeEntry> =
-        get_time_entries(user_id, from_env, to_env, account_id, token).await?;
+        get_time_entries(harvest_user_id, from, to, harvest_account_id, harvest_token).await?;
     let time_entries_filtered: TimeEntries = TimeEntries {
         time_entries: time_entries
             .iter()
@@ -53,6 +89,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let tracked_hours_this_week = entries.iter().map(|te| te.hours).sum::<f64>();
             Output {
                 isoweek: week,
+                month: Month::from_u32(
+                    NaiveDate::from_isoywd_opt(week.year(), week.week(), chrono::Weekday::Mon)
+                        .unwrap()
+                        .month(),
+                )
+                .unwrap()
+                .name()
+                .to_string(),
                 tracked_hours: tracked_hours_this_week,
                 expected_hours: expected_hours_this_week,
                 diff: tracked_hours_this_week - expected_hours_this_week,
@@ -60,40 +104,48 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         })
         .collect();
 
-    let output_sorted_with_accumulated_overtime: Vec<(Output, f64)> = time_entries_with_details
+    let output_sorted_with_accumulated_overtime: Vec<BeautifulOutput> = time_entries_with_details
         .iter()
-        .scan(0.0, |acc, &output| {
+        .scan(0.0, |acc, output| {
             *acc += output.diff;
-            Some((output, *acc))
+            Some(BeautifulOutput {
+                output: output.clone(),
+                accumulated_diff: *acc,
+            })
         })
         .collect();
 
-    output_sorted_with_accumulated_overtime
-        .iter()
-        .for_each(|(output, acc)| {
-            let output_formatted = display_output(*output, *acc);
-            println!("{}", output_formatted);
-        });
-    Ok(())
+    // let stats: String = output_sorted_with_accumulated_overtime
+    //     .iter()
+    //     .map(|bo| format!("{}\n", display_output(bo.output, bo.diff)))
+    //     .collect();
+
+    Ok(output_sorted_with_accumulated_overtime)
 }
 
 async fn get_time_entries(
-    user_id: String,
-    from: String,
-    to: String,
-    account_id: String,
-    token: String,
+    harvest_user_id: String,
+    from: NaiveDate,
+    to: NaiveDate,
+    harvest_account_id: String,
+    harvest_token: String,
 ) -> Result<Vec<TimeEntry>, Box<dyn std::error::Error>> {
     let mut time_entries: Vec<TimeEntry> = vec![];
     let params: [(&str, &str); 3] = [
-        ("user_id", user_id.as_str()),
-        ("from", from.as_str()),
-        ("to", to.as_str()),
+        ("user_id", harvest_user_id.as_str()),
+        ("from", &from.to_string()),
+        ("to", &to.to_string()),
     ];
     let mut next_page = 1;
     loop {
         println!("Getting page {next_page} of time entries.");
-        let mut foo = get(params, account_id.clone(), token.clone(), next_page).await?;
+        let mut foo = get_harvest_resp(
+            params,
+            harvest_account_id.clone(),
+            harvest_token.clone(),
+            next_page,
+        )
+        .await?;
         time_entries.append(&mut foo.time_entries);
         match foo.next_page {
             Some(page) => next_page = page,
@@ -103,10 +155,10 @@ async fn get_time_entries(
     Ok(time_entries)
 }
 
-async fn get(
+async fn get_harvest_resp(
     params: [(&str, &str); 3],
-    account_id: String,
-    token: String,
+    harvest_account_id: String,
+    harvest_token: String,
     page: i64,
 ) -> Result<HarvestResp, Box<dyn std::error::Error>> {
     let param_page = [("page", page)];
@@ -115,8 +167,11 @@ async fn get(
         .get("https://api.harvestapp.com/api/v2/time_entries")
         .query(&params)
         .query(&param_page)
-        .header("Harvest-Account-ID", account_id)
-        .header("Authorization", "Bearer ".to_string() + token.as_str())
+        .header("Harvest-Account-ID", harvest_account_id)
+        .header(
+            "Authorization",
+            "Bearer ".to_string() + harvest_token.as_str(),
+        )
         .header("User-Agent", "Harvest API Example")
         .send()
         .await?
