@@ -33,7 +33,6 @@ async fn serve_static_file() -> Response<Body> {
 
 async fn handle_get_stats(Query(params): Query<HarvestStatsParams>) -> impl IntoResponse {
     println!("Handling request with params: {:?}", params);
-    let empty_vec: Vec<BeautifulOutput> = vec![];
     match get_stats(
         params.harvest_user_id,
         params.harvest_token,
@@ -44,11 +43,8 @@ async fn handle_get_stats(Query(params): Query<HarvestStatsParams>) -> impl Into
     )
     .await
     {
-        Ok(stats) => (StatusCode::OK, Json(stats)),
-        Err(e) => {
-            println!("Error while trying to get Harvest stats: {:?}", e);
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(empty_vec))
-        }
+        Ok(stats) => (StatusCode::OK, Json(stats)).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }
 }
 
