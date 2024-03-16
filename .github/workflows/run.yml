@@ -1,30 +1,18 @@
-name: Run Harvest Time Tracker Analysis Tool
+name: Test
 
 on:
-  workflow_dispatch:
-    inputs:
-      accountid:
-        description: 'Harvest Account ID'
-        required: true
-      accesstoken:
-        description: 'Harvest Access Token'
-        required: true
-      userid:
-        description: 'Harvest User ID'
-        required: true
-      weeklyhours:
-        description: 'Expected weekly hours'
-        required: true
-      from:
-        description: 'From Date (YYYY-MM-DD)'
-        required: true
-      to:
-        description: 'To Date (YYYY-MM-DD)'
-        required: true
-
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+env:
+  # fatal warnings
+  RUSTFLAGS: -D warnings
 jobs:
   run-program:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
     - name: Checkout repository
       uses: actions/checkout@v2
@@ -36,14 +24,8 @@ jobs:
         profile: minimal
         override: true
 
-    - name: Build and run Harvest Time Tracker Analysis Tool
-      run: |
-        cargo run
-      env:
-        HARVEST_ACCOUNT_ID: ${{ github.event.inputs.accountid }}
-        HARVEST_ACCESS_TOKEN: ${{ github.event.inputs.accesstoken }}
-        HARVEST_USER_ID: ${{ github.event.inputs.userid }}
-        WEEKLY_HOURS: ${{ github.event.inputs.weeklyhours }}
-        FROM: ${{ github.event.inputs.from }}
-        TO: ${{ github.event.inputs.to }}
+    - name: Cargo clippy
+      run: cargo clippy
 
+    - name: Cargo test
+      run: cargo test
