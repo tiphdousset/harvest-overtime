@@ -86,6 +86,24 @@ Contributions are welcome! If you have suggestions for improvements or encounter
 
 --- 
 
+## Curl
+
+Route `stats-json` for a Json output:
+
 ```curl
-curl "http://localhost:3000/stats?harvest_user_id=$HARVEST_USER_ID&harvest_token=$HARVEST_ACCESS_TOKEN&harvest_account_id=$HARVEST_ACCOUNT_ID&from=$FROM&to=$TO&expected_hours_per_week=$WEEKLY_HOURS"
+curl "http://localhost:3000/stats-json?harvest_user_id=$HARVEST_USER_ID&harvest_token=$HARVEST_ACCESS_TOKEN&harvest_account_id=$HARVEST_ACCOUNT_ID&from=$FROM&to=$TO&expected_hours_per_week=$WEEKLY_HOURS" | jq
 ```
+
+Route `stats-prettify` for a prettify outout in terminal:
+
+```curl
+ curl "http://localhost:3000/stats-prettify?harvest_user_id=$HARVEST_USER_ID&harvest_token=$HARVEST_ACCESS_TOKEN&harvest_account_id=$HARVEST_ACCOUNT_ID&from=$FROM&to=$TO&expected_hours_per_week=$WEEKLY_HOURS"
+ ```
+
+## UI with your favourite browser
+
+1. [Online version](https://harvest-overtime.fly.dev/)
+
+or
+
+2. When running locally go to: [http://localhost:3000/](http://localhost:3000/)

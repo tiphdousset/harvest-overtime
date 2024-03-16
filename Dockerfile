@@ -30,4 +30,4 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/
 
 # Command to run the executable
-CMD ["./overtime"]
+CMD ["sh", "-c", "CLICOLOR_FORCE=true ./overtime --serve"]

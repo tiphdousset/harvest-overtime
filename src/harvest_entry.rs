@@ -22,13 +22,19 @@ where
 }
 
 #[derive(Serialize, Debug, Clone)]
-pub struct Output {
+pub struct WeeklySummary {
     #[serde(serialize_with = "serialize_iso_week")]
     pub isoweek: IsoWeek,
     pub month: String,
     pub expected_hours: f64,
     pub tracked_hours: f64,
     pub diff: f64,
+}
+
+#[derive(Serialize, Debug, Clone)]
+pub struct EnhancedWeeklySummary {
+    pub output: WeeklySummary,
+    pub accumulated_diff: f64,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -44,10 +50,4 @@ pub struct HarvestStatsParams {
     pub from: NaiveDate,
     pub to: NaiveDate,
     pub expected_hours_per_week: f64,
-}
-
-#[derive(Serialize)]
-pub struct BeautifulOutput {
-    pub output: Output,
-    pub accumulated_diff: f64,
 }

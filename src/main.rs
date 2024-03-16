@@ -9,15 +9,64 @@ use chrono::{Datelike, IsoWeek, Month, NaiveDate};
 use colored::*;
 use group_by::group_by;
 use num_traits::cast::FromPrimitive;
+use std::env;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let args: Vec<String> = env::args().collect();
+
+    if args.len() >= 2 && args[1] == "--serve" {
+        handle_http_server().await
+    } else {
+        handle_env_vars().await
+    }
+}
+
+async fn handle_http_server() -> Result<(), Box<dyn std::error::Error>> {
     let app: Router = Router::new()
-        .route("/stats", get(handle_get_stats))
-        .route("/", get(serve_static_file));
+        .route("/", get(serve_static_file))
+        .route("/stats-json", get(handle_get_stats_json))
+        .route("/stats-prettify", get(handle_get_stats_prettify_output));
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
     axum::serve(listener, app).await.unwrap();
+    Ok(())
+}
+
+async fn handle_env_vars() -> Result<(), Box<dyn std::error::Error>> {
+    let from_env = env::var("FROM").expect("$FROM is not set");
+    let from: NaiveDate = NaiveDate::parse_from_str(&from_env, "%Y-%m-%d")
+        .expect("Wrong format for FROM parameter. Expected format is: YYYY-MM-DD");
+
+    let to_env = env::var("TO").expect("$TO is not set");
+    let to: NaiveDate = NaiveDate::parse_from_str(&to_env, "%Y-%m-%d")
+        .expect("Wrong format for TO parameter. Expected format is: YYYY-MM-DD");
+
+    let expected_hours_per_week: f64 = env::var("WEEKLY_HOURS")
+        .expect("$WEEKLY_HOURS is not set")
+        .parse()
+        .expect("Wrong format for WEEKLY_HOURS parameter. Expected format is int like: 38");
+
+    let user_id = env::var("HARVEST_USER_ID").expect("$HARVEST_USER_ID is not set");
+
+    let token = env::var("HARVEST_ACCESS_TOKEN").expect("$HARVEST_ACCESS_TOKEN is not set");
+
+    let account_id = env::var("HARVEST_ACCOUNT_ID").expect("$HARVEST_ACCOUNT_ID is not set");
+
+    let stats = get_stats(
+        user_id,
+        token,
+        account_id,
+        from,
+        to,
+        expected_hours_per_week,
+    )
+    .await?;
+
+    stats.iter().for_each(|output| {
+        let output_formatted = display_prettify_week(output.clone());
+        println!("{}", output_formatted);
+    });
     Ok(())
 }
 
@@ -31,8 +80,8 @@ async fn serve_static_file() -> Response<Body> {
         .unwrap()
 }
 
-async fn handle_get_stats(Query(params): Query<HarvestStatsParams>) -> impl IntoResponse {
-    println!("Handling request with params: {:?}", params);
+async fn handle_get_stats_json(Query(params): Query<HarvestStatsParams>) -> impl IntoResponse {
+    println!("Handling /stats-json request with params: {:?}", params);
     match get_stats(
         params.harvest_user_id,
         params.harvest_token,
@@ -48,6 +97,35 @@ async fn handle_get_stats(Query(params): Query<HarvestStatsParams>) -> impl Into
     }
 }
 
+async fn handle_get_stats_prettify_output(
+    Query(params): Query<HarvestStatsParams>,
+) -> impl IntoResponse {
+    println!("Handling /stats-prettify request with params: {:?}", params);
+    match get_stats(
+        params.harvest_user_id,
+        params.harvest_token,
+        params.harvest_account_id,
+        params.from,
+        params.to,
+        params.expected_hours_per_week,
+    )
+    .await
+    {
+        Ok(stats) => {
+            let beautiful_string: String = stats
+                .iter()
+                .map(|weekly_stat| {
+                    let output = display_prettify_week(weekly_stat.clone());
+                    format!("{output}\n")
+                })
+                .collect();
+            (StatusCode::OK, beautiful_string).into_response()
+        }
+
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
 async fn get_stats(
     harvest_user_id: String,
     harvest_token: String,
@@ -55,7 +133,7 @@ async fn get_stats(
     from: NaiveDate,
     to: NaiveDate,
     expected_hours_per_week: f64,
-) -> Result<Vec<BeautifulOutput>, Box<dyn std::error::Error>> {
+) -> Result<Vec<EnhancedWeeklySummary>, Box<dyn std::error::Error>> {
     let expected_isoweeks: Vec<IsoWeek> = from
         .iter_weeks()
         .take_while(|w| w.iso_week() <= to.iso_week())
@@ -76,14 +154,14 @@ async fn get_stats(
     });
 
     let empty_vec: Vec<TimeEntry> = vec![];
-    let time_entries_with_details: Vec<Output> = expected_isoweeks
+    let time_entries_with_details: Vec<WeeklySummary> = expected_isoweeks
         .iter()
         .map(|&week| {
             let entries = time_entries_per_isoweek.get(&week).unwrap_or(&empty_vec);
             let expected_hours_this_week =
                 due_hours_per_week(week, from, to, expected_hours_per_week);
             let tracked_hours_this_week = entries.iter().map(|te| te.hours).sum::<f64>();
-            Output {
+            WeeklySummary {
                 isoweek: week,
                 month: Month::from_u32(
                     NaiveDate::from_isoywd_opt(week.year(), week.week(), chrono::Weekday::Mon)
@@ -100,21 +178,17 @@ async fn get_stats(
         })
         .collect();
 
-    let output_sorted_with_accumulated_overtime: Vec<BeautifulOutput> = time_entries_with_details
-        .iter()
-        .scan(0.0, |acc, output| {
-            *acc += output.diff;
-            Some(BeautifulOutput {
-                output: output.clone(),
-                accumulated_diff: *acc,
+    let output_sorted_with_accumulated_overtime: Vec<EnhancedWeeklySummary> =
+        time_entries_with_details
+            .iter()
+            .scan(0.0, |acc, output| {
+                *acc += output.diff;
+                Some(EnhancedWeeklySummary {
+                    output: output.clone(),
+                    accumulated_diff: *acc,
+                })
             })
-        })
-        .collect();
-
-    // let stats: String = output_sorted_with_accumulated_overtime
-    //     .iter()
-    //     .map(|bo| format!("{}\n", display_output(bo.output, bo.diff)))
-    //     .collect();
+            .collect();
 
     Ok(output_sorted_with_accumulated_overtime)
 }
@@ -135,15 +209,15 @@ async fn get_time_entries(
     let mut next_page = 1;
     loop {
         println!("Getting page {next_page} of time entries.");
-        let mut foo = get_harvest_resp(
+        let mut harvest_response = get_harvest_resp(
             params,
             harvest_account_id.clone(),
             harvest_token.clone(),
             next_page,
         )
         .await?;
-        time_entries.append(&mut foo.time_entries);
-        match foo.next_page {
+        time_entries.append(&mut harvest_response.time_entries);
+        match harvest_response.next_page {
             Some(page) => next_page = page,
             None => break,
         }
@@ -182,10 +256,15 @@ fn due_hours_per_week(
     to: NaiveDate,
     expected_hours_per_week: f64,
 ) -> f64 {
-    println!(
-        "Calculating expected hours for week: {:?}, \n From: {:?} ({:?}), \n To: {:?} ({:?}), \n Expected_hours_per_week: {:?} \n",
-        isoweek, from, from.iso_week(), to, to.iso_week(), expected_hours_per_week
-    );
+    // println!(
+    //     "Calculating expected hours for week: {:?}, \n From: {:?} ({:?}), \n To: {:?} ({:?}), \n Expected_hours_per_week: {:?} \n",
+    //     isoweek,
+    //     from,
+    //     from.iso_week(),
+    //     to,
+    //     to.iso_week(),
+    //     expected_hours_per_week
+    // );
     let expected_hours_per_day = expected_hours_per_week / 5.0;
     let start_weekday = from.weekday().number_from_monday();
     let start_in_weekend = start_weekday > 5;
@@ -202,42 +281,42 @@ fn due_hours_per_week(
         );
         return 0.0;
     } else if start_in_weekend && isoweek == start_isoweek {
-        println!("Only weekend days in the current week. No expected working hours.");
+        // println!("Only weekend days in the current week. No expected working hours.");
         return 0.0;
     } else if start_isoweek == isoweek && end_isoweek == isoweek {
-        println!("Given time range starts and ends the same week.");
+        // println!("Given time range starts and ends the same week.");
         let days_worked_in_week = ((end_weekday - start_weekday) + 1) as f64;
         let hours_worked_in_week = days_worked_in_week * expected_hours_per_day;
         return hours_worked_in_week;
     } else if start_isoweek == isoweek {
-        println!("Currently caluculating expected hours for the start week.");
+        // println!("Currently caluculating expected hours for the start week.");
         let days_worked_in_start_week = (5 - start_weekday + 1) as f64;
         let hours_worked_in_start_week = days_worked_in_start_week * expected_hours_per_day;
         return hours_worked_in_start_week;
     } else if end_isoweek == isoweek {
-        println!("Currently caluculating expected hours for the last week.");
+        // println!("Currently caluculating expected hours for the last week.");
         if end_in_weekend {
-            println!("Full last week");
+            // println!("Full last week");
             return expected_hours_per_week;
         } else {
             return end_weekday as f64 * expected_hours_per_day;
         };
     } else {
-        println!("Currently calculating expected hours for a week not being start/end week.");
+        // println!("Currently calculating expected hours for a week not being start/end week.");
         return expected_hours_per_week;
     }
 }
 
-fn display_output(output: Output, accumulated_overtime: f64) -> String {
-    let diff_of_the_week = output.diff;
-    let hashes_expected = "#".repeat(output.expected_hours as u32 as usize);
-    let hashes_tracked = "#".repeat(output.tracked_hours as u32 as usize);
-    let isoweek = output.isoweek;
+fn display_prettify_week(beautiful_output: EnhancedWeeklySummary) -> String {
+    let diff_of_the_week = beautiful_output.output.diff;
+    let hashes_expected = "#".repeat(beautiful_output.output.expected_hours as u32 as usize);
+    let hashes_tracked = "#".repeat(beautiful_output.output.tracked_hours as u32 as usize);
+    let isoweek = beautiful_output.output.isoweek;
     let month = NaiveDate::from_isoywd_opt(isoweek.year(), isoweek.week(), chrono::Weekday::Mon)
         .unwrap()
         .month();
     let month_name: String = Month::from_u32(month).unwrap().name().to_string();
-    let tracked_hours = output.tracked_hours;
+    let tracked_hours = beautiful_output.output.tracked_hours;
     let hashes: String = if diff_of_the_week < 0.0 {
         format!(
             "{}{}",
@@ -257,7 +336,7 @@ fn display_output(output: Output, accumulated_overtime: f64) -> String {
         tracked_hours,
         hashes,
         diff_of_the_week,
-        accumulated_overtime,
+        beautiful_output.accumulated_diff,
     );
 }
 
