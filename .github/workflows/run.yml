@@ -56,9 +56,9 @@ jobs:
       uses: docker/build-push-action@v5
       with:
         push: true
-        tags: registry.fly.io/overtime:${{ github.sha }}
+        tags: registry.fly.io/harvest-overtime:${{ github.sha }}
         cache-from: type=gha
         cache-to: type=gha,mode=max      
 
     - uses: superfly/flyctl-actions/setup-flyctl@master
-    - run: flyctl deploy --image registry.fly.io/overtime:${{ github.sha }}
+    - run: flyctl deploy --image registry.fly.io/harvest-overtime:${{ github.sha }}
