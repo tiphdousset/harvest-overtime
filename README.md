@@ -1,4 +1,4 @@
-README.md# Harvest Time Tracker Analysis Tool
+# Harvest Time Tracker Analysis Tool
 
 This project is designed to interact with the Harvest time tracking API to analyze and report on time entries for a specified user within a given date range.
 
