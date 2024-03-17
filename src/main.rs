@@ -25,8 +25,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 async fn handle_http_server() -> Result<(), Box<dyn std::error::Error>> {
     let app: Router = Router::new()
         .route("/", get(serve_static_file))
-        .route("/stats-json", get(handle_get_stats_json))
-        .route("/stats-prettify", get(handle_get_stats_prettify_output));
+        .route("/stats.json", get(handle_get_stats_json))
+        .route("/stats.ansi", get(handle_get_stats_prettify_output));
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
     axum::serve(listener, app).await.unwrap();
@@ -81,7 +81,7 @@ async fn serve_static_file() -> Response<Body> {
 }
 
 async fn handle_get_stats_json(Query(params): Query<HarvestStatsParams>) -> impl IntoResponse {
-    println!("Handling /stats-json request with params: {:?}", params);
+    println!("Handling /stats.json request with params: {:?}", params);
     match get_stats(
         params.harvest_user_id,
         params.harvest_token,
@@ -100,7 +100,7 @@ async fn handle_get_stats_json(Query(params): Query<HarvestStatsParams>) -> impl
 async fn handle_get_stats_prettify_output(
     Query(params): Query<HarvestStatsParams>,
 ) -> impl IntoResponse {
-    println!("Handling /stats-prettify request with params: {:?}", params);
+    println!("Handling /stats.ansi request with params: {:?}", params);
     match get_stats(
         params.harvest_user_id,
         params.harvest_token,

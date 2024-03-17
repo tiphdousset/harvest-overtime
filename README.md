@@ -13,6 +13,7 @@ Disclaimer: Only if you have entered **all your hours** in Harvest (incl. holida
 - Group time entries by ISO week for detailed analysis.
 - Report on discrepancies between expected and actual hours, including accumulated overtime.
 - Environment variable configuration for easy setup and use.
+- [2 endpoints](#curl) for curl commands
 
 ## Pre-requisists
 
@@ -88,22 +89,30 @@ Contributions are welcome! If you have suggestions for improvements or encounter
 
 ## Curl
 
-Route `stats-json` for a Json output:
+### Route `stats.json`, for a Json output:
+
+Locally
 
 ```curl
-curl "http://localhost:3000/stats-json?harvest_user_id=$HARVEST_USER_ID&harvest_token=$HARVEST_ACCESS_TOKEN&harvest_account_id=$HARVEST_ACCOUNT_ID&from=$FROM&to=$TO&expected_hours_per_week=$WEEKLY_HOURS" | jq
+curl "http://localhost:3000/stats.json?harvest_user_id=$HARVEST_USER_ID&harvest_token=$HARVEST_ACCESS_TOKEN&harvest_account_id=$HARVEST_ACCOUNT_ID&from=$FROM&to=$TO&expected_hours_per_week=$WEEKLY_HOURS" | jq
 ```
 
-Route `stats-prettify` for a prettify outout in terminal:
+Online version: replace `http://localhost:3000` with `https://harvest-overtime.fly.dev/`
+
+### Route `stats.ansi`, for a colored outout in terminal:
+
+Locally
 
 ```curl
- curl "http://localhost:3000/stats-prettify?harvest_user_id=$HARVEST_USER_ID&harvest_token=$HARVEST_ACCESS_TOKEN&harvest_account_id=$HARVEST_ACCOUNT_ID&from=$FROM&to=$TO&expected_hours_per_week=$WEEKLY_HOURS"
+ curl "http://localhost:3000/stats.ansi?harvest_user_id=$HARVEST_USER_ID&harvest_token=$HARVEST_ACCESS_TOKEN&harvest_account_id=$HARVEST_ACCOUNT_ID&from=$FROM&to=$TO&expected_hours_per_week=$WEEKLY_HOURS"
  ```
 
-## UI with your favourite browser
+ Online version: replace `http://localhost:3000` with `https://harvest-overtime.fly.dev/`
 
-1. [Online version](https://harvest-overtime.fly.dev/)
+## UI from your favourite browser
+
+1. Online version: go to [harvest-overtime.fly.dev](https://harvest-overtime.fly.dev/)
 
 or
 
-2. When running locally go to: [http://localhost:3000/](http://localhost:3000/)
+2. When running locally go to: [http://localhost:3000](http://localhost:3000/)

@@ -60,7 +60,7 @@
             const queryString = `?harvest_user_id=${encodeURIComponent(harvest_user_id)}&harvest_token=${encodeURIComponent(harvest_token)}&harvest_account_id=${encodeURIComponent(harvest_account_id)}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&expected_hours_per_week=${encodeURIComponent(expected_hours_per_week)}`;
 
             // Perform the HTTP request
-            const stats = await (await fetch('/stats-json' + queryString)).json();
+            const stats = await (await fetch('/stats.json' + queryString)).json();
 
             document.getElementById('result').innerHTML = "";
 
