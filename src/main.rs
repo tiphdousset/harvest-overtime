@@ -112,6 +112,7 @@ async fn handle_get_stats_prettify_output(
     .await
     {
         Ok(stats) => {
+            #[allow(clippy::format_collect)]
             let beautiful_string: String = stats
                 .iter()
                 .map(|weekly_stat| {
@@ -145,7 +146,7 @@ async fn get_stats(
         time_entries: time_entries
             .iter()
             .filter(|te| te.spent_date >= from && te.spent_date <= to)
-            .map(|te| *te)
+            .cloned()
             .collect(),
     };
 
@@ -279,10 +280,10 @@ fn due_hours_per_week(
             "Given week: {:?} is outside of give time range: from: {:?} to: {:?}. No expected working hours.",
             isoweek, from, to
         );
-        return 0.0;
+        0.0
     } else if start_in_weekend && isoweek == start_isoweek {
         // println!("Only weekend days in the current week. No expected working hours.");
-        return 0.0;
+        0.0
     } else if start_isoweek == isoweek && end_isoweek == isoweek {
         // println!("Given time range starts and ends the same week.");
         let days_worked_in_week = ((end_weekday - start_weekday) + 1) as f64;
@@ -330,14 +331,14 @@ fn display_prettify_week(beautiful_output: EnhancedWeeklySummary) -> String {
             "#".repeat(diff_of_the_week as u32 as usize).green()
         )
     };
-    return format_output(
+    format_output(
         isoweek,
         month_name,
         tracked_hours,
         hashes,
         diff_of_the_week,
         beautiful_output.accumulated_diff,
-    );
+    )
 }
 
 fn format_output(
@@ -348,7 +349,7 @@ fn format_output(
     diff_of_the_week: f64,
     accumulated_overtime: f64,
 ) -> String {
-    return format!(
+    format!(
         "{:?} {:10} {:6.2}h (tracked) {:60} {:+6.2}h (this week) {acc:+6.2}h (accumulated)",
         isoweek,
         month_name,
@@ -356,7 +357,7 @@ fn format_output(
         hashes,
         diff_of_the_week,
         acc = accumulated_overtime,
-    );
+    )
 }
 
 #[test]
