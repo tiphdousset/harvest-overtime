@@ -11,11 +11,11 @@ env:
   # fatal warnings
   RUSTFLAGS: -D warnings
 jobs:
-  run-program:
+  test:
     runs-on: ubuntu-22.04
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
 
     - name: Set up Rust
       uses: actions-rs/toolchain@v1
@@ -29,3 +29,16 @@ jobs:
 
     - name: Cargo test
       run: cargo test
+
+  deploy:
+    runs-on: ubuntu-22.04
+    if: ${{ github.ref_type == 'branch' && github.ref_name == 'main' }}
+    needs: test
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+    timeout-minutes: 30
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    - uses: superfly/flyctl-actions/setup-flyctl@master
+    - run: flyctl deploy --local-only
