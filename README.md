@@ -1,4 +1,4 @@
-# Harvest Time Tracker Analysis Tool
+README.md# Harvest Time Tracker Analysis Tool
 
 This project is designed to interact with the Harvest time tracking API to analyze and report on time entries for a specified user within a given date range.
 
@@ -97,7 +97,7 @@ Locally
 curl "http://localhost:3000/stats.json?harvest_user_id=$HARVEST_USER_ID&harvest_token=$HARVEST_ACCESS_TOKEN&harvest_account_id=$HARVEST_ACCOUNT_ID&from=$FROM&to=$TO&expected_hours_per_week=$WEEKLY_HOURS" | jq
 ```
 
-Online version: replace `http://localhost:3000` with `https://harvest-overtime.fly.dev/`
+Online version: replace `http://localhost:3000` with `https://harvest-overtime.fly.dev`
 
 ### Route `stats.ansi`, for a colored outout in terminal:
 
@@ -107,7 +107,7 @@ Locally
  curl "http://localhost:3000/stats.ansi?harvest_user_id=$HARVEST_USER_ID&harvest_token=$HARVEST_ACCESS_TOKEN&harvest_account_id=$HARVEST_ACCOUNT_ID&from=$FROM&to=$TO&expected_hours_per_week=$WEEKLY_HOURS"
  ```
 
- Online version: replace `http://localhost:3000` with `https://harvest-overtime.fly.dev/`
+ Online version: replace `http://localhost:3000` with `https://harvest-overtime.fly.dev`
 
 ## UI from your favourite browser
 
