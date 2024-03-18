@@ -17,13 +17,10 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: Set up Rust
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
-        profile: minimal
-        override: true
+    - run: rustup toolchain install stable --profile minimal
 
+    - uses: Swatinem/rust-cache@v2
+    
     - name: Cargo clippy
       run: cargo clippy
 
@@ -52,7 +49,7 @@ jobs:
         username: ${{ secrets.FLY_USERNAME }}
         password: ${{ secrets.FLY_API_TOKEN }}
 
-    - name: Docker Build
+    - name: Docker Build And Push
       uses: docker/build-push-action@v5
       with:
         push: true
