@@ -20,9 +20,12 @@ jobs:
     - run: rustup toolchain install stable --profile minimal
 
     - uses: Swatinem/rust-cache@v2
-    
+
     - name: Cargo clippy
       run: cargo clippy
+
+    - name: Cargo format
+      run: cargo fmt --check
 
     - name: Cargo test
       run: cargo test
